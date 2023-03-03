@@ -43,10 +43,8 @@ Usage="
 ## for specific use case.
 
 -h to see this message
--s <dataset_name> to get info on a specific data set (TODO)
-<> to get deltas for Amon dataset (should be removed later on)
 <dataset_name> to get the desired delta from this dataset
-    Curently supported are: Amon, Omon, Emon, day, CFday"
+    Curently supported are: Amon, Omon, Emon, day, CFday and SImon"
 
 while getopts 'h' flag; do
   case "${flag}" in
@@ -57,9 +55,10 @@ done
 # USER SETTINGS
 ##############################################################################
 # base directory where cmip6 data is stored
-cmip_data_dir=/path/to/cmip6/data
+cmip_data_dir=/net/atmos/data/cmip6/
 # base directory where output should be stored
-out_base_dir=/path/to/processed/climate/deltas
+#
+out_base_dir=.
 
 # name of the GCM to extract data for
 gcm_name=MPI-ESM1-2-HR
@@ -97,6 +96,8 @@ elif [[ "$1" == "day" ]]; then
     table_ID=$1
 elif [[ "$1" == "CFday" ]]; then
     table_ID=$1
+elif [[ "$1" == "SImon" ]]; then
+	table_ID=$1
 elif [ $# -eq 0 ]; then
     echo "Please specify which dataset the deltas should be extracted from. See -h for more info"
     exit 0
@@ -109,7 +110,7 @@ fi
 
 ## select variables to extract
 if [[ "$table_ID" == "Amon" ]]; then
-    var_names=(tas hurs ps ua va ta hur zg)
+    var_names=(ts tas hurs ps ua va ta hur zg)
 elif [[ "$table_ID" == "day" ]]; then
     var_names=(tas hurs ps ua va ta hur zg)
 elif [[ "$table_ID" == "Emon" ]]; then
@@ -118,6 +119,8 @@ elif [[ "$table_ID" == "CFday" ]]; then
     var_names=(ua va ta hur)
 elif [[ "$table_ID" == "Omon" ]]; then
     var_names=(tos)
+elif [[ "$table_ID" == "SImon" ]]; then
+    var_names=(siconc)
 fi
 ## for Emon, compute hur delta separately after 
 ## it has been derived from hus

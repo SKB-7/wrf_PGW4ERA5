@@ -788,7 +788,7 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
     else:
         periodic_lon = False
 
-
+    print(1)
     #### IMPLEMENTATION WITH XESMF
     ##########################################################################
     ## XESMF sometimes alters the exact values of the latitude coordinate
@@ -815,6 +815,7 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
     ## except for tiny differences that appear to originate from
     ## numerical precision.
     else:
+        print(2)
         #### LATITUDE INTERPOLATION
         ######################################################################
         ## make sure latitude is increasing with index
@@ -826,7 +827,7 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
             # flip latitude dimension
             ds_gcm = ds_gcm.reindex(
                     {LAT_GCM:list(reversed(ds_gcm[LAT_GCM]))})
-
+        print(3)
         ## If GCM dataset reaches poles (almost), add a pole grid point
         ## with the zonal average of the values closest to the pole
         if np.max(targ_lat.values) + dlat_gcm > 89.9:
@@ -839,7 +840,7 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
             south[LAT_GCM].values = -90
             south[var_name] = south[var_name].mean(dim=[LON_GCM])
             ds_gcm = xr.concat([south,ds_gcm], dim=LAT_GCM)
-
+        print(4)
         ## make sure there is no extrapolation to the North and South
         if ( (np.max(targ_lat.values) > np.max(ds_gcm[LAT_GCM].values)) |
              (np.min(targ_lat.values) < np.min(ds_gcm[LAT_GCM].values))):
@@ -853,10 +854,10 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
                               'than GCM dataset!. Perhaps consider using ' +
                               'ERA5 on a subdomain only if global coverage ' +
                               'is not required?') 
-
+        print(5)
         ## run interpolation
         ds_gcm = ds_gcm.interp({LAT_GCM:targ_lat})
-
+        print(6)
         #### LONGITUDE INTERPOLATION
         ######################################################################
         ### Implement periodic boundary conditions
@@ -887,8 +888,9 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
                               'is not required?') 
 
         ## run interpolation
+        print(7)
         ds_gcm = ds_gcm.interp({LON_GCM:targ_lon})
-
+        print(8)
     ## test for NaN
     #if np.sum(np.isnan(ds_gcm[var_name])).values > 0:
     #    raise ValueError('NaN in GCM dataset after interpolation.')
@@ -909,18 +911,32 @@ def nan_ignoring_interp(da_era5_land_fr, da_delta, kernel_radius, sharpness):
         Passes the ERA5 land fraction and grid data
     da_delta : xr.array
         Passes the unstructured array from which to interpolate
-    radius : scaler
-        Passes a maximal distance for interpolation 
+    kernel_radius : int
+        Passes a maximal distance for interpolation in meters. Only applicable for ocean variables
+    sharpness : float
+        Passes a sharpness coefficent. The higher value it has the less contribution is associated with farther away grid points. 
+        Only applicable for ocean variables
     
     Returns
     -------
-    new_era5_grid : np.ndarray
-        da_delta interpolated to the ERA5 grid
+    new_era5_grid : np.2darray
+        Original values interpolated onto the target grid
     """
 
     #-------------------
     #PREPROCESSING GCM DATA
     #-------------------
+    if len(da_delta.coords[LAT_GCM_OCEAN].shape) == 2:
+        gcm_lat_raw = da_delta.coords[LAT_GCM_OCEAN].values
+        gcm_lon_raw = da_delta.coords[LON_GCM_OCEAN].values
+    elif len(da_delta.coords[LAT_GCM_OCEAN].shape) == 1:
+        gcm_lat_raw, gcm_lon_raw = np.meshgrid(
+            da_delta.coords[LAT_GCM_OCEAN].values, 
+            da_delta.coords[LON_GCM_OCEAN].values,
+            indexing='ij',
+        )
+    else:
+        raise NotImplementedError()
 
     #Construct lon and lat arrays for point cloud by flattening them into an array
     gcm_lat_raw = da_delta.coords[LAT_GCM_OCEAN].values.reshape(-1)
@@ -957,6 +973,8 @@ def nan_ignoring_interp(da_era5_land_fr, da_delta, kernel_radius, sharpness):
     gcm_lon_meter = np.multiply(gcm_lon_meter, sign_map_lon)
     
     #Implement Boundary points
+    #Simply done by adding the whole field to the left and right. 
+    # This is crude but works fine as long as the grids dont become too large
     gcm_val_bd = np.empty(len(gcm_val)*3)
     gcm_lon_bd = np.empty(len(gcm_lon_meter)*3)
     gcm_lat_bd = np.empty(len(gcm_lat_meter)*3)
@@ -1015,6 +1033,7 @@ def nan_ignoring_interp(da_era5_land_fr, da_delta, kernel_radius, sharpness):
     #-------------------
     #Computing the interpolation
     #-------------------
+
     #Set up pyvista unstructured grids for both gcm and era5 data
     grid = PolyData(era5_points)
     points = PolyData(curv_points)
@@ -1027,6 +1046,7 @@ def nan_ignoring_interp(da_era5_land_fr, da_delta, kernel_radius, sharpness):
         radius=kernel_radius, 
         sharpness=sharpness
     )
+
     #-------------------
     #POSTPROCESSING ERA5 DATA
     #-------------------
@@ -1049,53 +1069,70 @@ def interp_wrapper(
     ):
     """Interpolation wrapper that allows for each variable to be assigned a custom scheme
 
-    This function implements for different variables different kinds of interpoaltion. Default is bi-linear
+    This function implements for different variables different kinds of interpolation. Default is bi-linear
     interpolation from regular grid to regular grid.
 
     Parameters
     ----------
 
-    origin_grid : xr.array
+    origin_grid : xr.DataSet
         Passes the GCM original grid structure and values
-    target_grid : xr.array
-        Passes target grid structure to interpolate
-    i_use_xesmf = boolean
+    target_grid : xr.DataSet
+        Passes target grid structure to interpolate to
+    i_use_xesmf : boolean
         Passes booloean to adjust which bi-linear scheme is used, only applicable for athmospheric variables
-    radius : scaler
-        Passes a maximal distance for interpolation, only applicable for ocean variables 
+    nan_interp_kernel_radius : int
+        Passes a maximal distance for interpolation in meters. Only applicable for ocean variables
+    nan_interp_sharpness : float
+        Passes a sharpness coefficent. The higher value it has the less contribution is associated with farther away grid points. 
+        Only applicable for ocean variables
     
     Returns
     -------
     new_era5_grid : xr.DataSet
-        da_delta interpolated to the ERA5 grid
+        Original values interpolated onto the target grid
     """
-    #Custom interpolation for TOS
-    if var_name == 'tos':
+    #Custom interpolation for non-regular grids
+    if var_name in ['tos', 'siconc']:
         land_fraction = target_grid["FR_LAND"][0,:,:]
-        tos_values = origin_grid['tos']
+        values = origin_grid[var_name]
         
         #Interpolate all 12 months indivdually
         result = np.empty((12,len(target_grid[LAT_ERA]), len(target_grid[LON_ERA])))
         for i in range(12):
             result[i,:,:] = nan_ignoring_interp(
                 land_fraction, 
-                tos_values[i,:,:], 
+                values[i,:,:], 
                 kernel_radius=nan_interp_kernel_radius,
                 sharpness=nan_interp_sharpness
             )
         
         #Save into xr.Dataset
-        ds = xr.Dataset(
-            data_vars=dict(
-                tos=(["time","lat", "lon"], result),
-            ),
-            coords=dict(
-                lat=(["lat"], target_grid[LAT_ERA].data),
-                lon=(["lon"], target_grid[LON_ERA].data),
-                time=origin_grid[TIME_GCM]
-            ),
-            attrs=dict(description="SST on ERA5 grid", units="K", long_name="Sea Surface Temperature"),
-        )
+        if var_name == 'tos':
+
+            ds = xr.Dataset(
+                data_vars=dict(
+                    tos=(["time","lat", "lon"], result),
+                ),
+                coords=dict(
+                    lat=(["lat"], target_grid[LAT_ERA].data),
+                    lon=(["lon"], target_grid[LON_ERA].data),
+                    time=origin_grid[TIME_GCM]
+                ),
+                attrs=dict(description=str(var_name) + " on ERA5 grid", units="K", long_name=str(var_name)),
+            )
+        else:
+            ds = xr.Dataset(
+                data_vars=dict(
+                    siconc=(["time","lat", "lon"], result),
+                ),
+                coords=dict(
+                    lat=(["lat"], target_grid[LAT_ERA].data),
+                    lon=(["lon"], target_grid[LON_ERA].data),
+                    time=origin_grid[TIME_GCM]
+                ),
+                attrs=dict(description=str(var_name) + " on ERA5 grid", units="K", long_name=str(var_name)),
+            )
     #Default interpolation
     else:
         ds = regrid_lat_lon(origin_grid, target_grid, var_name,
@@ -1103,8 +1140,10 @@ def interp_wrapper(
                         i_use_xesmf=i_use_xesmf)
     return ds
 
+
+
 def integrate_tos(tos_field, ts_field, land_frac, ice_frac):
-    """Combines TOS and TS temperature as a weighted according to land and ocean contribution
+    """Combines TOS and TS temperature as a weighted average according to land and ocean contribution
     
     This functions assumes that all fields are on the same grid!
 
@@ -1130,7 +1169,6 @@ def integrate_tos(tos_field, ts_field, land_frac, ice_frac):
     #Ocean mask
     ice_frac = ice_frac.reshape(-1)
     tos_field = tos_field.reshape(-1)
-    #TODO add cases for true mask
 
     mask = ~np.isnan(ice_frac) & ~np.isnan(tos_field)
     #Turn all fields into arrays for easier accessing
