@@ -191,7 +191,7 @@ for var_name in ${var_names[@]}; do
             ## compute ERA climatology
             if [[ "$experiment" == "$era_climate_experiment" ]]; then
                 # extract full time series
-                cdo sellonlatbox,$box \
+                cdo -L -sellonlatbox,$box \
                     -selyear,1985/2014 \
                     -cat \
                     $inp_dir/${var_name}_${file_name_base}_19[8-9]*.nc \
@@ -201,7 +201,7 @@ for var_name in ${var_names[@]}; do
             ## compute future experiment climatology
             elif [[ "$experiment" == "$future_climate_experiment" ]]; then
                 # extract full time series
-                cdo sellonlatbox,$box \
+                cdo -L -sellonlatbox,$box \
                     -selyear,2070/2099 \
                     -cat \
                     $inp_dir/${var_name}_${file_name_base}_20[6-9]*.nc \
@@ -214,7 +214,7 @@ for var_name in ${var_names[@]}; do
             # this should be done on the basis of monthly values not
             # with the mean annual cycle. Due to this, the full time
             # series is stored as well.
-            cdo $cdo_agg_command \
+            cdo -L -$cdo_agg_command \
                 $out_dir/${var_name}_${experiment}_full.nc \
                 $out_dir/${var_name}_${experiment}.nc
         fi
@@ -233,7 +233,7 @@ for var_name in ${var_names[@]}; do
                     -a $Amon_out_dir/hur_${experiment}_full.nc
                     
                 # aggregate to yearly monthly/daily means
-                cdo $cdo_agg_command \
+                cdo -L -$cdo_agg_command \
                     $out_dir/hur_${experiment}_full.nc \
                     $out_dir/hur_${experiment}.nc
             fi
@@ -243,7 +243,7 @@ for var_name in ${var_names[@]}; do
 
     ## compute delta (future climatology - ERA climatology)
     if [[ $i_compute_delta == 1 ]]; then
-        cdo sub $out_dir/${var_name}_$future_climate_experiment.nc \
+        cdo -L -sub $out_dir/${var_name}_$future_climate_experiment.nc \
                 $out_dir/${var_name}_$era_climate_experiment.nc \
                 $out_dir/${var_name}_delta.nc
     fi
