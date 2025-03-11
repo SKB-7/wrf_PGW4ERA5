@@ -55,20 +55,20 @@ done
 # USER SETTINGS
 ##############################################################################
 # base directory where cmip6 data is stored
-cmip_data_dir=/net/atmos/data/cmip6/
+cmip_data_dir=/mnt/hdd2/S_K_B/CMIP  #/net/atmos/data/cmip6/
 # base directory where output should be stored
 #
-out_base_dir=.
+out_base_dir=/mnt/hdd2/S_K_B/deltas  #.
 
 # name of the GCM to extract data for
-gcm_name=MPI-ESM1-2-HR
+gcm_name=CESM2   #MPI-ESM1-2-HR
 
 ## CMIP experiments to use to compute climate deltas
 ## --> climate delta = future climatology - ERA climatology
 # CMIP experiment to use for ERA climatology 
 era_climate_experiment=historical
 # CMIP experiment to use for future climatology 
-future_climate_experiment=ssp585
+future_climate_experiment=ssp126  #ssp585
 
 
 ## type of CMIP6 model output (e.g. monthly or daily, etc.)
@@ -145,7 +145,7 @@ fi
 ## or anything larger than ERA5 subdomain
 ## except for storage and performance reasons, there is no benefit of
 ## using a subdomain.
-box=0,360,-90,90
+box=70,90,30,40    #0,360,-90,90
 # subdomain
 #box=-74,40,-45,35
 #box=-73,37,-42,34
@@ -180,10 +180,11 @@ for var_name in ${var_names[@]}; do
         if [[ $i_extract_vars == 1 ]]; then
 
             # data folder hierarchy for CMIP6
-            inp_dir=$cmip_data_dir/$experiment/$table_ID/$var_name/$gcm_name/r1i1p1f1/gn
+            inp_dir=$cmip_data_dir/$gcm_name/$experiment     #$cmip_data_dir/$experiment/$table_ID/$var_name/$gcm_name/r1i1p1f1/gn
 
             # start of the CMIP6 file names
             file_name_base=${table_ID}_${gcm_name}_${experiment}_r1i1p1f1_gn
+            file_name_base1=${table_ID}_${gcm_name}_${experiment}_r4i1p1f1_gn
 
             ## overwrite old data
             #rm $out_dir/${var_name}_${experiment}.nc
@@ -194,8 +195,7 @@ for var_name in ${var_names[@]}; do
                 cdo -L -sellonlatbox,$box \
                     -selyear,1985/2014 \
                     -cat \
-                    $inp_dir/${var_name}_${file_name_base}_19[8-9]*.nc \
-                    $inp_dir/${var_name}_${file_name_base}_20[0-1]*.nc \
+                    $inp_dir/${var_name}_${file_name_base}_18[5-9]*.nc \
                     $out_dir/${var_name}_${experiment}_full.nc
 
             ## compute future experiment climatology
@@ -204,7 +204,7 @@ for var_name in ${var_names[@]}; do
                 cdo -L -sellonlatbox,$box \
                     -selyear,2070/2099 \
                     -cat \
-                    $inp_dir/${var_name}_${file_name_base}_20[6-9]*.nc \
+                    $inp_dir/${var_name}_${file_name_base1}_20[6-9]*.nc \
                     $out_dir/${var_name}_${experiment}_full.nc
             fi
 
