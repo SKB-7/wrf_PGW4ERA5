@@ -123,8 +123,9 @@ for var_name in var_names:
         inp_file = os.path.join(args.input_dir, var_file_name)
         out_file = os.path.join(args.output_dir, var_file_name)
 
-        # open ERA5 file with target grid
-        ds_era5 = xr.open_dataset(args.era5_file_path)
+        if args.era5_file_path is not None:
+            # open ERA5 file with target grid
+            ds_era5 = xr.open_dataset(args.era5_file_path)
 
         # smoothing
         if args.processing_step == 'smoothing':

@@ -145,7 +145,7 @@ fi
 ## or anything larger than ERA5 subdomain
 ## except for storage and performance reasons, there is no benefit of
 ## using a subdomain.
-box=70,90,30,40    #0,360,-90,90
+box=65,90,20,44 #67,88,22,42 #70,90,30,40    #0,360,-90,90
 # subdomain
 #box=-74,40,-45,35
 #box=-73,37,-42,34
@@ -187,7 +187,7 @@ for var_name in ${var_names[@]}; do
             file_name_base1=${table_ID}_${gcm_name}_${experiment}_r4i1p1f1_gn
 
             ## overwrite old data
-            #rm $out_dir/${var_name}_${experiment}.nc
+            rm $out_dir/${var_name}_${experiment}.nc
 
             ## compute ERA climatology
             if [[ "$experiment" == "$era_climate_experiment" ]]; then

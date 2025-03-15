@@ -28,8 +28,8 @@ era5_file_name_base = 'cas{:%Y%m%d%H}0000.nc'
 
 # dimension names in ERA5 file
 TIME_ERA        = 'time'
-LON_ERA         = 'lon'
-LAT_ERA         = 'lat'
+LON_ERA         = 'longitude'
+LAT_ERA         = 'latitude'
 LEV_ERA         = 'level'
 HLEV_ERA        = 'level1'
 SOIL_HLEV_ERA   = 'soil1'
