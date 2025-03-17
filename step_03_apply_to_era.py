@@ -588,7 +588,9 @@ if __name__ == "__main__":
 
     # first date and last date to datetime object
     first_era_step = datetime.strptime(args.first_era_step, '%Y%m%d%H')
+    print(first_era_step)
     last_era_step = datetime.strptime(args.last_era_step, '%Y%m%d%H')
+    print(last_era_step)
 
     # time steps to process
     era_step_dts = np.arange(first_era_step,

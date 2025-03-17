@@ -23,7 +23,7 @@ file_name_bases = {
 }
 
 # File naming convention for ERA5 files to be read in and written out.
-era5_file_name_base = 'cas{:%Y%m%d%H}0000.nc'
+era5_file_name_base = 'cas{:%Y%m%d%H}.nc'  #0000.nc'
 #era5_file_name_base = 'caf{:%Y%m%d%H}.nc'
 
 # dimension names in ERA5 file
@@ -60,16 +60,16 @@ var_name_map = {
     ####################
 
     # 3D air temperature
-    'ta'   :'T',
+    'ta'   :'t', #'T',
     # 3D lon-wind speed
-    'ua'   :'U',
+    'ua'   :'u', #'U',
     # 3D lat-wind speed 
-    'va'   :'V',
+    'va'   :'v', #'V',
     # 3D air relative humidity
-    'hur'  :'RELHUM',
+    'hur'  :'r', #'RELHUM',
 
     # geopotential
-    'zg'   :'PHI', # used for pressure adjustment only
+    'zg'   :'z', #'PHI', # used for pressure adjustment only
 
     # near-surface temperature
     'tas'  :None, # not modified in ERA5 (auxiliary field for computations)
@@ -83,24 +83,24 @@ var_name_map = {
     ####################
 
     # surface pressure
-    'ps'   :'PS', # auxiliary field for interpolation and pressure adjustm.
+    'ps'   :'sp', #'PS', # auxiliary field for interpolation and pressure adjustm.
 
 
     ##### no GCM data required but ERA5 variable used by the code
     ####################
 
     # air specific humidity
-    'hus'  :'QV',
+    'hus'  :'q', #'QV',
     # surface geopotential
-    'zgs'  :'FIS', # used for pressure adjustment
+    'zgs'  :'z', #'FIS', # used for pressure adjustment
     # surface skin temperature
-    'ts'   :'T_SKIN',
+    'ts'   :'skt', #'T_SKIN',
     # soil layer temperature
     'st'   :'T_SO',
     # land area fraction
     'sftlf':'FR_LAND',
     # sea-ice area fraction
-    'sic':  'FR_SEA_ICE',
+    'sic':  'siconc', #'FR_SEA_ICE',
 }
 
 
