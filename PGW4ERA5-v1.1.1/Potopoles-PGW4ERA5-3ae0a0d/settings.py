@@ -23,21 +23,21 @@ file_name_bases = {
 }
 
 # File naming convention for ERA5 files to be read in and written out.
-era5_file_name_base = 'cas{:%Y%m%d%H}.nc'  #0000.nc'
+era5_file_name_base = 'cas{:%Y%m%d%H}0000.nc'
 #era5_file_name_base = 'caf{:%Y%m%d%H}.nc'
 
 # dimension names in ERA5 file
 TIME_ERA        = 'time'
-LON_ERA         = 'longitude'
-LAT_ERA         = 'latitude'
-LEV_ERA         = 'model_level'
+LON_ERA         = 'lon'
+LAT_ERA         = 'lat'
+LEV_ERA         = 'level'
 HLEV_ERA        = 'level1'
 SOIL_HLEV_ERA   = 'soil1'
 
 # dimension names in GCM (used for all GCM variables except tos)
 TIME_GCM        = 'time'
-LON_GCM         = 'longitude'
-LAT_GCM         = 'latitude'
+LON_GCM         = 'lon'
+LAT_GCM         = 'lat'
 PLEV_GCM        = 'plev'
 LEV_GCM         = 'lev'
 
@@ -60,16 +60,16 @@ var_name_map = {
     ####################
 
     # 3D air temperature
-    'ta'   :'t', #'T',
+    'ta'   :'T',
     # 3D lon-wind speed
-    'ua'   :'u', #'U',
+    'ua'   :'U',
     # 3D lat-wind speed 
-    'va'   :'v', #'V',
+    'va'   :'V',
     # 3D air relative humidity
-    'hur'  :'r', #'RELHUM',
+    'hur'  :'RELHUM',
 
     # geopotential
-    'zg'   :'z', #'PHI', # used for pressure adjustment only
+    'zg'   :'PHI', # used for pressure adjustment only
 
     # near-surface temperature
     'tas'  :None, # not modified in ERA5 (auxiliary field for computations)
@@ -83,24 +83,24 @@ var_name_map = {
     ####################
 
     # surface pressure
-    'ps'   :'sp', #'PS', # auxiliary field for interpolation and pressure adjustm.
+    'ps'   :'PS', # auxiliary field for interpolation and pressure adjustm.
 
 
     ##### no GCM data required but ERA5 variable used by the code
     ####################
 
     # air specific humidity
-    'hus'  :'q', #'QV',
+    'hus'  :'QV',
     # surface geopotential
-    'zgs'  :'z', #'FIS', # used for pressure adjustment
+    'zgs'  :'FIS', # used for pressure adjustment
     # surface skin temperature
-    'ts'   :'skt', #'T_SKIN',
+    'ts'   :'T_SKIN',
     # soil layer temperature
     'st'   :'T_SO',
     # land area fraction
     'sftlf':'FR_LAND',
     # sea-ice area fraction
-    'sic':  'ci', #'FR_SEA_ICE',
+    'sic':  'FR_SEA_ICE',
 }
 
 
@@ -124,7 +124,7 @@ i_use_xesmf_regridding = 0
 # higher values imply that remote lakes (and bays) without GCM SST data will
 # receive data from further remote GCM SST grid points instead of falling
 # back to the tas (near surface temperature) climate delta
-nan_interp_kernel_radius = 1000000 # m
+nan_interp_kernel_radius = 300000 # m
 # sharpness: decrease (increase) for smoother (sharper) interpolation
 nan_interp_sharpness = 4
 
@@ -137,8 +137,8 @@ nan_interp_sharpness = 4
 # with only 6 vertical levels between 1000-500 hPa), settting
 # p_ref_inp = None may help to improve the accuray of the
 # pressure adjustment. See publication for more information.
-# p_ref_inp = 100 # Pa
-p_ref_inp = None
+p_ref_inp = 30000 # Pa
+#p_ref_inp = None
 # surface pressure adjustment factor in the iterative routine
 adj_factor = 0.95
 # convergence threshold (maximum geopotential error)
@@ -147,6 +147,6 @@ thresh_phi_ref_max_error = 0.15
 # maximum number of iterations before error is raised.
 max_n_iter = 20
 # re-interpolation turned on/off
-i_reinterp = True
+i_reinterp = 0
 ##########################################################################
 

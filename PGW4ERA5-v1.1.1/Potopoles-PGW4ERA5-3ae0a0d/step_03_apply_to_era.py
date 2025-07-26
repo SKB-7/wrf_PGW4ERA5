@@ -14,7 +14,6 @@ import numpy as np
 from argparse import RawDescriptionHelpFormatter
 from pathlib import Path
 from datetime import datetime, timedelta
-import pdb
 from functions import (
     specific_to_relative_humidity,
     relative_to_specific_humidity,
@@ -58,28 +57,13 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
     deltas = {}
 
     # open data set
-    era_file = xr.open_dataset(inp_era_file_path)#, decode_cf=False)
-    if 'valid_time' in era_file.dims:
-        era_file = era_file.rename({'valid_time': 'time'})
-    print('era_file', era_file.dims)
+    era_file = xr.open_dataset(inp_era_file_path, decode_cf=False)
 
     ## compute pressure on ERA5 full levels and half levels
     # pressure on half levels
     pa_hl_era = (era_file.ak + 
                 era_file[var_name_map['ps']] * era_file.bk).transpose(
                 TIME_ERA, HLEV_ERA, LAT_ERA, LON_ERA)
-    # Save pa_hl_era to a NetCDF file for debugging or analysis
-    pa_hl_era_dataset = pa_hl_era.to_dataset(name="pa_hl_era")
-    pa_hl_era_file_path = os.path.join(
-        Path(out_era_file_path).parents[0],
-        f"pa_hl_era_{Path(out_era_file_path).name}"
-    )
-    pa_hl_era_dataset.to_netcdf(pa_hl_era_file_path, mode="w")
-    print(f"pa_hl_era saved to {pa_hl_era_file_path}")
-    # print("min ps:", era_file[var_name_map['ps']].min().values)
-    # print("max ps:", era_file[var_name_map['ps']].max().values)
-    # print('min_pa_hl_era', pa_hl_era.min().values)
-    # print('max_pa_hl_era', pa_hl_era.max().values)
     # if akm and akb coefficients (for full levels) exist, use them
     if 'akm' in era_file:
         akm = era_file.akm
@@ -92,33 +76,16 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
             dim=HLEV_ERA, 
             label='lower').rename({HLEV_ERA:LEV_ERA}) + 
             era_file.ak.isel({HLEV_ERA:range(len(era_file.level1)-1)}).values
-            # era_file.ak.isel({HLEV_ERA: slice(0, -1)}).rename({HLEV_ERA: LEV_ERA})
         )
         bkm = (
             0.5 * era_file.bk.diff(
             dim=HLEV_ERA, 
             label='lower').rename({HLEV_ERA:LEV_ERA}) + 
             era_file.bk.isel({HLEV_ERA:range(len(era_file.level1)-1)}).values
-            # era_file.bk.isel({HLEV_ERA: slice(0, -1)}).rename({HLEV_ERA: LEV_ERA})
         )
     # pressure on full levels
     pa_era = (akm + era_file[var_name_map['ps']] * bkm).transpose(
                 TIME_ERA, LEV_ERA, LAT_ERA, LON_ERA)
-    # Save pa_era to a NetCDF file for debugging or analysis
-    pa_era_dataset = pa_era.to_dataset(name="pa_era")
-    pa_era_file_path = os.path.join(
-        Path(out_era_file_path).parents[0],
-        f"pa_era_{Path(out_era_file_path).name}"
-    )
-    pa_era_dataset.to_netcdf(pa_era_file_path, mode="w")
-    print(f"pa_era saved to {pa_era_file_path}")
-    
-    print('pa_hl_era', pa_hl_era.dims)
-    print("pa_era dimensions:", pa_era.dims)
-    # print("pa_era shape:", pa_era.shape)
-    # print("min pa_era:", pa_era.min().values)
-    # print("max pa_era:", pa_era.max().values)
-    # print('akm', akm)
 
     # compute relative humidity in ERA climate state
     era_file[var_name_map['hur']] = specific_to_relative_humidity(
@@ -133,13 +100,6 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
     # surface skin temperature delta over land and over sea ice
     if i_debug >= 2:
         print('update surface skin temperature (ts)')
-    delta_siconc = load_delta(delta_input_dir, 'siconc',
-                        era_file[TIME_ERA], era_step_dt) 
-    era_file[var_name_map['sic']].values += delta_siconc.values/100
-    era_file[var_name_map['sic']].values = np.clip(
-                        era_file[var_name_map['sic']].values, 0, 1)
-    print(np.nanmin(era_file[var_name_map['sic']].values))
-    #deltas['siconc'] = delta_siconc
     # load surface temperature climate delta
     #(for grid points over land and sea ice)
     delta_ts = load_delta(delta_input_dir, 'ts',
@@ -158,7 +118,7 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
     delta_ts.values = delta_ts_combined
     # store delta for output in case of --debug_mode = interpolate_full
     deltas['ts'] = delta_ts
-    print(np.nanmin(era_file[var_name_map['sic']].values))
+
     # update temperature of soil layers
     if i_debug >= 2:
         print('update soil layer temperature (st)')
@@ -177,7 +137,6 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
     era_file[var_name_map['st']].values += delta_soilt
     # store delta for output in case of --debug_mode = interpolate_full
     deltas['st'] = delta_soilt
-    print('Finished updating surface and soil temperature.')
 
     #########################################################################
     ### START UPDATING 3D FIELDS
@@ -187,7 +146,6 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
     # surface pressure. This means that the climate deltas or
     # interpolated on the ERA5 model levels of the ERA climate state.
     if not i_reinterp:
-        print('i_reinterp:', i_reinterp)
 
         ### interpolate climate deltas onto ERA5 grid
         for var_name in ['ta','hur','ua','va']:
@@ -206,9 +164,6 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
                     era_file[var_name_map[var_name]] + 
                     deltas[var_name]
             )
-            print('vars_pgw', vars_pgw[var_name].dims)
-            if vars_pgw[var_name].isnull().any():
-                print("vars_pgw[{}] contains None".format(var_name))
 
 
     #########################################################################
@@ -220,47 +175,24 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
     delta_ps = xr.zeros_like(era_file[var_name_map['ps']])
     # increment to adjust delta_ps with each iteration
     adj_ps = xr.zeros_like(era_file[var_name_map['ps']])
-    # print('adj_ps', adj_ps.dims)
     # maximum error in geopotential (used in iteration)
     phi_ref_max_error = np.inf
 
     it = 1
-    # print('it', it)
     while phi_ref_max_error > thresh_phi_ref_max_error:
-        # print('### iteration {:03d}'.format(it))
-        # if it > 1:
-        #     pdb.set_trace()
-        print('enter iteration')
+
         # update surface pressure
-        delta_ps = delta_ps + adj_ps
+        delta_ps += adj_ps
         ps_pgw = era_file[var_name_map['ps']] + delta_ps
-        if ps_pgw.isnull().any():
-            print("ps_pgw contains None")
-        else:
-            print("ps_pgw contains no None")
-        print(ps_pgw.dims)
-        
+
         # recompute pressure on full and half levels
         pa_pgw = (akm + ps_pgw * bkm).transpose(
                     TIME_ERA, LEV_ERA, LAT_ERA, LON_ERA)
         pa_hl_pgw = (era_file.ak + ps_pgw * era_file.bk).transpose(
                     TIME_ERA, HLEV_ERA, LAT_ERA, LON_ERA)
-        print('pa_pgw', pa_pgw.dims)
-        print('pa_hl_pgw', pa_hl_pgw.dims)
-        # print('min pa_pgw', pa_pgw.min().values)
-        # print('max pa_pgw', pa_pgw.max().values)
-        # if pa_pgw.isnull().any():
-        #     print("pa_pgw contains None")
-        # else:
-        #     print("pa_pgw contains no None")
-        # if pa_hl_pgw.isnull().any():
-        #     print("pa_hl_pgw contains None")
-        # else:
-        #     print("pa_hl_pgw contains no None")
 
 
         if i_reinterp:
-            print('i_reinterp:', i_reinterp)
             # interpolate ERA climate state variables as well as
             # climate deltas onto updated model levels, and
             # compute PGW climate state variables
@@ -278,51 +210,32 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
 
         # Determine current reference pressure (p_ref)
         if p_ref_inp is None:
-            print('p_ref_inp is None')
             # get GCM pressure levels as candidates for reference pressure
             p_ref_opts = load_delta(delta_input_dir, 'zg',
                                 era_file[TIME_ERA], era_step_dt)[PLEV_GCM]
-            # print('p_ref_opts', p_ref_opts)
-            p_ref_opts = np.array([
-                p_ref_opts.values[i] for i in range(len(p_ref_opts))
-                if p_ref_opts.values[i] > 0.0])
             # maximum reference pressure in ERA and PGW climate states
             # (take 95% of surface pressure to ensure that a few model
             # levels are located in between which makes the solution
             # smoother).
             p_min_era = pa_hl_era.isel(
-                        {HLEV_ERA:len(pa_hl_era[HLEV_ERA])-1})
+                        {HLEV_ERA:len(pa_hl_era[HLEV_ERA])-1}) * 0.95
             p_min_pgw = pa_hl_pgw.isel(
-                        {HLEV_ERA:len(pa_hl_era[HLEV_ERA])-1})
-        
+                        {HLEV_ERA:len(pa_hl_era[HLEV_ERA])-1}) * 0.95
             # reference pressure from a former iteration already set?
             try:
                 p_ref_last = p_ref
-                print('p_ref_last is not None')
-                print('dims p_ref', p_ref_last.dims)
             except UnboundLocalError:
                 p_ref_last = None
-                print('p_ref_last is None')
             # determine local reference pressure
-            # print('p_min_era:', p_min_era)
-            # print('p_min_pgw_before_0.95:', pa_hl_era.isel({HLEV_ERA:len(pa_hl_era[HLEV_ERA])-1}))
-            # print('p_min_pgw:', p_min_pgw)
-            # print('p_ref_opts:', p_ref_opts)
-            # print('p_ref_last:', p_ref_last)
             p_ref = xr.apply_ufunc(determine_p_ref, p_min_era, p_min_pgw, 
                     p_ref_opts, p_ref_last,
                     input_core_dims=[[],[],[PLEV_GCM],[]],
                     vectorize=True)
-            # if it > 1:
-            #    pdb.set_trace()
-            #     print('p_ref_last:', p_ref_last)
             if HLEV_ERA in p_ref.coords:
                 del p_ref[HLEV_ERA]
             # make sure a reference pressure above the required model
             # level could be found everywhere
-            # pdb.set_trace()
             if np.any(np.isnan(p_ref)):
-                # print('p_ref:', p_ref)
                 raise ValueError('No reference pressure level above the ' +
                         'required local minimum pressure level could not ' +
                         'be found everywhere. ' +
@@ -330,9 +243,7 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
                         'data set does not reach up high enough (e.g. only to ' +
                         '500 hPa instead of e.g. 300 hPa?)')
         else:
-            print('p_ref_inp is not None', p_ref_inp)
             p_ref = p_ref_inp
-            # pdb.set_trace()
 
         #p_sfc_era.to_netcdf('psfc_era.nc')
         #p_ref.to_netcdf('pref.nc')
@@ -347,17 +258,7 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
             vars_pgw['ta']
         )
 
-        # print("Minimum ERA5 pressure (p_min_era):", p_min_era.min().values)
-        # print("Minimum PGW pressure (p_min_pgw):", p_min_pgw.min().values)
-
         # compute updated geopotential at reference pressure
-        print('compute geopotential')
-        # print('era_file', era_file[var_name_map['zgs']].dims)
-        # if vars_pgw['ta'].isnull().any():
-        #     raise ValueError('ERROR! Temperature contains NaN values.')
-        # if vars_pgw['hus'].isnull().any():
-        #     raise ValueError('ERROR! Specific humidity contains NaN values.')
-            
         phi_ref_pgw = integ_geopot(
             pa_hl_pgw, 
             era_file[var_name_map['zgs']], 
@@ -366,22 +267,9 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
             era_file[HLEV_ERA], 
             p_ref
         )
-        if phi_ref_pgw.isnull().any():
-            print("phi_ref_pgw contains None")
-        else:
-            print("phi_ref_pgw contains no None")
-        # Save phi_ref_pgw to a NetCDF file for debugging or analysis
-        phi_ref_pgw_dataset = phi_ref_pgw.to_dataset(name="phi_ref_pgw")
-        phi_ref_pgw_file_path = os.path.join(
-            Path(out_era_file_path).parents[0],
-            f"phi_ref_pgw_{Path(out_era_file_path).name}"
-        )
-        phi_ref_pgw_dataset.to_netcdf(phi_ref_pgw_file_path, mode="w")
-        print(f"phi_ref_pgw saved to {phi_ref_pgw_file_path}")
 
         # recompute original geopotential at currently used 
         # reference pressure level
-        print('compute original geopotential')
         phi_ref_era = integ_geopot(
             pa_hl_era, 
             era_file[var_name_map['zgs']],
@@ -390,54 +278,23 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
             era_file[HLEV_ERA],
             p_ref
         )
-        if phi_ref_era.isnull().any():
-            print("phi_ref_era contains None")
-        else:
-            print("phi_ref_era contains no None")
-        # Save phi_ref_era to a NetCDF file for debugging or analysis
-        phi_ref_era_dataset = phi_ref_era.to_dataset(name="phi_ref_era")
-        phi_ref_era_file_path = os.path.join(
-            Path(out_era_file_path).parents[0],
-            f"phi_ref_era_{Path(out_era_file_path).name}"
-        )
-        phi_ref_era_dataset.to_netcdf(phi_ref_era_file_path, mode="w")
-        print(f"phi_ref_era saved to {phi_ref_era_file_path}")
 
         delta_phi_ref = phi_ref_pgw - phi_ref_era
-        print('delta_phi_ref', delta_phi_ref.dims)
-        # if delta_phi_ref.isnull().any():
-        #     print("delta_phi_ref contains None")
-        # else:
-        #     print("delta_phi_ref contains no None")
 
         ## load climate delta at currently used reference pressure level
-        print('era_file[TIME_ERA]', era_file[TIME_ERA])
         climate_delta_phi_ref = load_delta(delta_input_dir, 'zg',
                             era_file[TIME_ERA], era_step_dt) * CON_G
         climate_delta_phi_ref = climate_delta_phi_ref.sel({PLEV_GCM:p_ref})
-        # climate_delta_phi_ref = climate_delta_phi_ref.rename({'time': 'valid_time'})
-        # climate_delta_phi_ref = climate_delta_phi_ref.isel(time=0) 
         del climate_delta_phi_ref[PLEV_GCM]
-        print('Done loading climate delta')
-        print('climate_delta_phi_ref', climate_delta_phi_ref.dims)
 
         # error in future geopotential
         phi_ref_error = delta_phi_ref - climate_delta_phi_ref
-        if phi_ref_error.isnull().any():
-            print("phi_ref_error contains None")
-        else:
-            print("phi_ref_error contains no None")
 
         # adjust surface pressure by some amount in the right direction
         adj_ps = - adj_factor * ps_pgw / (
                 CON_RD * 
                 vars_pgw['ta'].sel({LEV_ERA:np.max(era_file[LEV_ERA])})
             ) * phi_ref_error
-        print('adj_ps', adj_ps.dims)
-        if adj_ps.isnull().any():
-            print("adj_ps contains None")
-        else:
-            print("adj_ps contains no None")
         if LEV_ERA in adj_ps.coords:
             del adj_ps[LEV_ERA]
 
@@ -447,7 +304,6 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
                             format(it, phi_ref_max_error))
 
         it += 1
-        print('it', it)
 
         if it > max_n_iter:
             raise ValueError('ERROR! Pressure adjustment did not converge '+
@@ -460,7 +316,7 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
     #########################################################################
     # store computed delta ps for output in case of 
     # --debug_mode = interpolate_full
-    deltas['ps'] = ps_pgw - era_file[var_name_map['ps']]
+    deltas['ps'] = ps_pgw - era_file.PS
 
     ## If re-interpolation is enabled, interpolate climate deltas for
     ## ua and va onto final PGW climate state ERA5 model levels.
@@ -511,7 +367,6 @@ def pgw_for_era5(inp_era_file_path, out_era_file_path,
 
 
         ## save updated ERA5 file
-        print(np.nanmin(era_file[var_name_map['sic']].values))
         era_file.to_netcdf(out_era_file_path, mode='w')
         era_file.close()
         if i_debug >= 1:
@@ -725,9 +580,7 @@ if __name__ == "__main__":
 
     # first date and last date to datetime object
     first_era_step = datetime.strptime(args.first_era_step, '%Y%m%d%H')
-    print(first_era_step)
     last_era_step = datetime.strptime(args.last_era_step, '%Y%m%d%H')
-    print(last_era_step)
 
     # time steps to process
     era_step_dts = np.arange(first_era_step,
@@ -748,15 +601,13 @@ if __name__ == "__main__":
     ##########################################################################
     # iterate over time step and prepare function arguments
     for era_step_dt in era_step_dts:
-        # print(era_step_dt)
+        print(era_step_dt)
 
         # set output and input ERA5 file
         inp_era_file_path = os.path.join(args.input_dir, 
                 era5_file_name_base.format(era_step_dt))
-        # print('inp_era_file_path', inp_era_file_path)
         out_era_file_path = os.path.join(args.output_dir, 
                 era5_file_name_base.format(era_step_dt))
-        # print('out_era_file_path', out_era_file_path)
 
         step_args.append(dict(
             inp_era_file_path = inp_era_file_path,

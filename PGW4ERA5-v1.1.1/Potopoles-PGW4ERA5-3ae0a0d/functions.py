@@ -8,7 +8,6 @@ authors		Before 2022:    original developments by Roman Brogli
 """
 ##############################################################################
 import os,math,warnings
-import pdb
 import pandas as pd
 import xarray as xr
 import numpy as np
@@ -134,42 +133,23 @@ def integ_geopot(pa_hl, zgs, ta, hus, level1, p_ref):
     ## take log half-level pressure difference (located at full levels)
     # make sure pressure is not exactly zero because of ln
     pa_hl = pa_hl.where(pa_hl > 0, 0.0001)
-    if pa_hl.isnull().any():
-        raise ValueError('NaN in pa_hl')
     dlnpa = np.log(pa_hl).diff(
                 dim=HLEV_ERA, 
                 label='lower').rename({HLEV_ERA:LEV_ERA})
-    # model_levels = pa_hl[HLEV_ERA].values
-    # dlnpa = dlnpa.assign_coords({LEV_ERA: model_levels[1:].astype(int)})
-    # print('dlnpa:', dlnpa.sel({LEV_ERA:1}))
-    if dlnpa.isnull().any():
-        raise ValueError('NaN in dlnpa')
-    # print('dlnpa:', dlnpa[LEV_ERA])
 
     # create geopotential array and fill with surface geopotential
-    # print('zgs:', zgs)
     phi_hl = zgs.expand_dims(dim={HLEV_ERA:level1}).copy()
-    # print('phi_hl:', phi_hl)
 
     # compute virtual temperature
     tav = ta * (1 + 0.61 * hus)
-    # print('tav:', tav[LEV_ERA].values)
-    # if tav.isnull().any():
-    #     raise ValueError('NaN in tav')
 
     ## integrate over model half levels
     for l in sorted(tav[LEV_ERA].values, reverse=True):
-        # l = float(l)
-        # print('l:', l)
-        # print('dlnpa:', dlnpa.sel({LEV_ERA:l}))
-
         # geopotential at full level
         phi_hl.loc[{HLEV_ERA:l}] = (
                 phi_hl.sel({HLEV_ERA:l+1}) +
                 (CON_RD * tav.sel({LEV_ERA:l}) * dlnpa.sel({LEV_ERA:l}))
         )
-    # if phi_hl.isnull().any():
-    #     raise ValueError('NaN in phi_hl')
 
             
     phi_hl = phi_hl.transpose(TIME_ERA, HLEV_ERA, LAT_ERA, LON_ERA)
@@ -179,28 +159,15 @@ def integ_geopot(pa_hl, zgs, ta, hus, level1, p_ref):
     # determine level below reference pressure
     p_diff = pa_hl - p_ref
     p_diff = p_diff.where(p_diff >= 0, np.nan)
-    # print('p_diff:', p_diff)
-    # print("Max pa_hl:", pa_hl.max().values)
-    # print("Min pa_hl:", pa_hl.min().values)
-    # print("p_ref:", p_ref.values)
     try:
         ind_ref_star = p_diff.argmin(dim=HLEV_ERA)
-        # print('ind_ref_star:', ind_ref_star)
     except ValueError :
         raise ValueError("p_ref locally lies below the surface. Please set a lower reference pressue (p_ref_inp) in settings.py")
     
-    # Safely find level index closest above p_ref
-    ind_ref_star = p_diff.argmin(dim=HLEV_ERA)
-    # print('ind_ref_star:', ind_ref_star)
-
     hl_ref_star = p_diff[HLEV_ERA].isel({HLEV_ERA:ind_ref_star})
-    # print('hl_ref_star:', hl_ref_star)
     # get pressure and geopotential of that level
     p_ref_star = pa_hl.sel({HLEV_ERA:hl_ref_star})
     phi_ref_star = phi_hl.sel({HLEV_ERA:hl_ref_star})
-    # print('p_ref_star:', p_ref_star)
-    # print('phi_ref_star:', phi_ref_star)
-    # print('p_ref', p_ref)
 
     # finally interpolate geopotential to reference
     # pressure level
@@ -235,10 +202,6 @@ def load_delta(delta_input_dir, var_name, era5_date_time,
     ## full climate delta (either daily or monthly)
     full_delta = xr.open_dataset(os.path.join(delta_input_dir,
                             name_base.format(var_name)))
-    # full_delta = full_delta.rename({'time': 'valid_time'})
-    # print('dimensions of full_delta:', full_delta.dims)
-    # if full_delta.isnull().any():
-    #     raise ValueError('NaN in full_delta')
     ## convert time values to standard Pandas Datetimes
     ## this is to catch error arising from cftime.DatetimeNoLeap time format
     ## (https://stackoverflow.com/questions/54462798/cftime-datetimenoleap-object-fails-to-convert-with-pandas-to-datetime)
@@ -330,25 +293,12 @@ def load_delta(delta_input_dir, var_name, era5_date_time,
 
         # make sure time is in the same format as in ERA5 file
         # ERA5 has "seconds since xyz" while delta has np.datetime64
-        # print('delta time:', delta['time'])
-        # print('era5_date_time:', era5_date_time)
-        # print('dimensions of delta:', delta['time'])
-        # 
-        # delta = delta.assign_coords(time=era5_date_time.values)
-        # print('after delta time:', delta['time'])
-        # delta['time'] = era5_date_time
+        delta['time'] = era5_date_time
 
     ## if full climate delta should be returned without 
     ## time interpolation
     else:
         delta = full_delta[var_name]
-    
-    # Rename time dimension if it doesn't match era5_date_time
-    # if 'time' in delta.dims != era5_date_time.dims:
-    #     delta = delta.rename({'time': era5_date_time.name})
-    #     print('Renamed time dimension to match era5_date_time')
-    #     print('New dimensions of delta:', delta.dims)
-        
 
     return(delta)
 
@@ -368,8 +318,6 @@ def load_delta_interp(delta_input_dir, var_name, target_P,
     """
     delta = load_delta(delta_input_dir, var_name, 
                         era5_date_time, target_date_time)
-    # if delta.isnull().any():
-    #     raise ValueError('NaN in delta')
 
     ## for ta and hur variables also load climate delta for near surface
     ## values and the historical surface pressure to improve vertical
@@ -643,24 +591,11 @@ def determine_p_ref(p_min_era, p_min_pgw, p_ref_opts, p_ref_last=None):
     pressure levels and not converge.
     """
     for p in p_ref_opts:
-        # print('p:', p)
         if (p_min_era > p) & (p_min_pgw > p):
-            # print('p_min_era:', p_min_era)
-            # print('p_min_pgw:', p_min_pgw)
-            # print('enough pressure levels available for p_ref:', p)
-            if p_ref_last is None:                
-                # print('from determine_p_ref:', p)
-                # pdb.set_trace()
+            if p_ref_last is None:
                 return(p)
             else:
-                # pdb.set_trace()
                 return(min(p, p_ref_last))
-    # print('No suitable reference pressure level found. '+
-    #       'Please set p_ref_inp in settings.py to a value '+
-    #       'between the minimum pressure of the ERA5 and PGW data.')
-    # print('ERA5 minimum pressure:', p_min_era)
-    # print('PGW minimum pressure:', p_min_pgw)
-
 
 
 
@@ -853,7 +788,7 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
     else:
         periodic_lon = False
 
-    print(1)
+
     #### IMPLEMENTATION WITH XESMF
     ##########################################################################
     ## XESMF sometimes alters the exact values of the latitude coordinate
@@ -880,7 +815,6 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
     ## except for tiny differences that appear to originate from
     ## numerical precision.
     else:
-        print(2)
         #### LATITUDE INTERPOLATION
         ######################################################################
         ## make sure latitude is increasing with index
@@ -892,7 +826,7 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
             # flip latitude dimension
             ds_gcm = ds_gcm.reindex(
                     {LAT_GCM:list(reversed(ds_gcm[LAT_GCM]))})
-        print(3)
+
         ## If GCM dataset reaches poles (almost), add a pole grid point
         ## with the zonal average of the values closest to the pole
         if np.max(targ_lat.values) + dlat_gcm > 89.9:
@@ -905,7 +839,7 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
             south[LAT_GCM].values = -90
             south[var_name] = south[var_name].mean(dim=[LON_GCM])
             ds_gcm = xr.concat([south,ds_gcm], dim=LAT_GCM)
-        print(4)
+
         ## make sure there is no extrapolation to the North and South
         if ( (np.max(targ_lat.values) > np.max(ds_gcm[LAT_GCM].values)) |
              (np.min(targ_lat.values) < np.min(ds_gcm[LAT_GCM].values))):
@@ -919,10 +853,10 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
                               'than GCM dataset!. Perhaps consider using ' +
                               'ERA5 on a subdomain only if global coverage ' +
                               'is not required?') 
-        print(5)
+
         ## run interpolation
         ds_gcm = ds_gcm.interp({LAT_GCM:targ_lat})
-        print(6)
+
         #### LONGITUDE INTERPOLATION
         ######################################################################
         ### Implement periodic boundary conditions
@@ -953,9 +887,8 @@ def regrid_lat_lon(ds_gcm, ds_era5, var_name,
                               'is not required?') 
 
         ## run interpolation
-        print(7)
         ds_gcm = ds_gcm.interp({LON_GCM:targ_lon})
-        print(8)
+
     ## test for NaN
     #if np.sum(np.isnan(ds_gcm[var_name])).values > 0:
     #    raise ValueError('NaN in GCM dataset after interpolation.')
@@ -976,32 +909,18 @@ def nan_ignoring_interp(da_era5_land_fr, da_delta, kernel_radius, sharpness):
         Passes the ERA5 land fraction and grid data
     da_delta : xr.array
         Passes the unstructured array from which to interpolate
-    kernel_radius : int
-        Passes a maximal distance for interpolation in meters. Only applicable for ocean variables
-    sharpness : float
-        Passes a sharpness coefficent. The higher value it has the less contribution is associated with farther away grid points. 
-        Only applicable for ocean variables
+    radius : scaler
+        Passes a maximal distance for interpolation 
     
     Returns
     -------
-    new_era5_grid : np.2darray
-        Original values interpolated onto the target grid
+    new_era5_grid : np.ndarray
+        da_delta interpolated to the ERA5 grid
     """
 
     #-------------------
     #PREPROCESSING GCM DATA
     #-------------------
-    if len(da_delta.coords[LAT_GCM_OCEAN].shape) == 2:
-        gcm_lat_raw = da_delta.coords[LAT_GCM_OCEAN].values
-        gcm_lon_raw = da_delta.coords[LON_GCM_OCEAN].values
-    elif len(da_delta.coords[LAT_GCM_OCEAN].shape) == 1:
-        gcm_lat_raw, gcm_lon_raw = np.meshgrid(
-            da_delta.coords[LAT_GCM_OCEAN].values, 
-            da_delta.coords[LON_GCM_OCEAN].values,
-            indexing='ij',
-        )
-    else:
-        raise NotImplementedError()
 
     #Construct lon and lat arrays for point cloud by flattening them into an array
     gcm_lat_raw = da_delta.coords[LAT_GCM_OCEAN].values.reshape(-1)
@@ -1038,8 +957,6 @@ def nan_ignoring_interp(da_era5_land_fr, da_delta, kernel_radius, sharpness):
     gcm_lon_meter = np.multiply(gcm_lon_meter, sign_map_lon)
     
     #Implement Boundary points
-    #Simply done by adding the whole field to the left and right. 
-    # This is crude but works fine as long as the grids dont become too large
     gcm_val_bd = np.empty(len(gcm_val)*3)
     gcm_lon_bd = np.empty(len(gcm_lon_meter)*3)
     gcm_lat_bd = np.empty(len(gcm_lat_meter)*3)
@@ -1098,7 +1015,6 @@ def nan_ignoring_interp(da_era5_land_fr, da_delta, kernel_radius, sharpness):
     #-------------------
     #Computing the interpolation
     #-------------------
-
     #Set up pyvista unstructured grids for both gcm and era5 data
     grid = PolyData(era5_points)
     points = PolyData(curv_points)
@@ -1111,7 +1027,6 @@ def nan_ignoring_interp(da_era5_land_fr, da_delta, kernel_radius, sharpness):
         radius=kernel_radius, 
         sharpness=sharpness
     )
-
     #-------------------
     #POSTPROCESSING ERA5 DATA
     #-------------------
@@ -1134,70 +1049,53 @@ def interp_wrapper(
     ):
     """Interpolation wrapper that allows for each variable to be assigned a custom scheme
 
-    This function implements for different variables different kinds of interpolation. Default is bi-linear
+    This function implements for different variables different kinds of interpoaltion. Default is bi-linear
     interpolation from regular grid to regular grid.
 
     Parameters
     ----------
 
-    origin_grid : xr.DataSet
+    origin_grid : xr.array
         Passes the GCM original grid structure and values
-    target_grid : xr.DataSet
-        Passes target grid structure to interpolate to
-    i_use_xesmf : boolean
+    target_grid : xr.array
+        Passes target grid structure to interpolate
+    i_use_xesmf = boolean
         Passes booloean to adjust which bi-linear scheme is used, only applicable for athmospheric variables
-    nan_interp_kernel_radius : int
-        Passes a maximal distance for interpolation in meters. Only applicable for ocean variables
-    nan_interp_sharpness : float
-        Passes a sharpness coefficent. The higher value it has the less contribution is associated with farther away grid points. 
-        Only applicable for ocean variables
+    radius : scaler
+        Passes a maximal distance for interpolation, only applicable for ocean variables 
     
     Returns
     -------
     new_era5_grid : xr.DataSet
-        Original values interpolated onto the target grid
+        da_delta interpolated to the ERA5 grid
     """
-    #Custom interpolation for non-regular grids
-    if var_name in ['tos', 'siconc']:
+    #Custom interpolation for TOS
+    if var_name == 'tos':
         land_fraction = target_grid["FR_LAND"][0,:,:]
-        values = origin_grid[var_name]
+        tos_values = origin_grid['tos']
         
         #Interpolate all 12 months indivdually
         result = np.empty((12,len(target_grid[LAT_ERA]), len(target_grid[LON_ERA])))
         for i in range(12):
             result[i,:,:] = nan_ignoring_interp(
                 land_fraction, 
-                values[i,:,:], 
+                tos_values[i,:,:], 
                 kernel_radius=nan_interp_kernel_radius,
                 sharpness=nan_interp_sharpness
             )
         
         #Save into xr.Dataset
-        if var_name == 'tos':
-
-            ds = xr.Dataset(
-                data_vars=dict(
-                    tos=(["time","lat", "lon"], result),
-                ),
-                coords=dict(
-                    lat=(["lat"], target_grid[LAT_ERA].data),
-                    lon=(["lon"], target_grid[LON_ERA].data),
-                    time=origin_grid[TIME_GCM]
-                ),
-                attrs=dict(description=str(var_name) + " on ERA5 grid", units="K", long_name=str(var_name)),
-            )
-        else:
-            ds = xr.Dataset(
-                data_vars=dict(
-                    siconc=(["time","lat", "lon"], result),
-                ),
-                coords=dict(
-                    lat=(["lat"], target_grid[LAT_ERA].data),
-                    lon=(["lon"], target_grid[LON_ERA].data),
-                    time=origin_grid[TIME_GCM]
-                ),
-                attrs=dict(description=str(var_name) + " on ERA5 grid", units="K", long_name=str(var_name)),
-            )
+        ds = xr.Dataset(
+            data_vars=dict(
+                tos=(["time","lat", "lon"], result),
+            ),
+            coords=dict(
+                lat=(["lat"], target_grid[LAT_ERA].data),
+                lon=(["lon"], target_grid[LON_ERA].data),
+                time=origin_grid[TIME_GCM]
+            ),
+            attrs=dict(description="SST on ERA5 grid", units="K", long_name="Sea Surface Temperature"),
+        )
     #Default interpolation
     else:
         ds = regrid_lat_lon(origin_grid, target_grid, var_name,
@@ -1205,10 +1103,8 @@ def interp_wrapper(
                         i_use_xesmf=i_use_xesmf)
     return ds
 
-
-
 def integrate_tos(tos_field, ts_field, land_frac, ice_frac):
-    """Combines TOS and TS temperature as a weighted average according to land and ocean contribution
+    """Combines TOS and TS temperature as a weighted according to land and ocean contribution
     
     This functions assumes that all fields are on the same grid!
 
@@ -1234,6 +1130,7 @@ def integrate_tos(tos_field, ts_field, land_frac, ice_frac):
     #Ocean mask
     ice_frac = ice_frac.reshape(-1)
     tos_field = tos_field.reshape(-1)
+    #TODO add cases for true mask
 
     mask = ~np.isnan(ice_frac) & ~np.isnan(tos_field)
     #Turn all fields into arrays for easier accessing

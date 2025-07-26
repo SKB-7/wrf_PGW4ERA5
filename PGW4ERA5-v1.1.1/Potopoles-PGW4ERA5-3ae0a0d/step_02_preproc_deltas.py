@@ -80,8 +80,8 @@ parser.add_argument('-e', '--era5_file_path', type=str, default=None,
 parser.add_argument('-v', '--var_names', type=str,
             help='Variable names (e.g. ta) to process. Separate ' +
             'multiple variable names with "," (e.g. tas,ta). Default is ' +
-            'to process all required variables ta,hur,ua,va,zg,hurs,tas,ps,tos,ts,siconc.',
-            default='ta,hur,ua,va,zg,hurs,tas,ps,tos,ts,siconc')
+            'to process all required variables ta,hur,ua,va,zg,hurs,tas,ps,tos,ts.',
+            default='ta,hur,ua,va,zg,hurs,tas,ps,tos,ts')
 
 
 args = parser.parse_args()
@@ -109,11 +109,11 @@ print('Run {} for variable names {}.'.format(
 # iterate over all variables to preprocess
 for var_name in var_names:
     print(var_name)
-    # if var_name == 'ps':
+    #if var_name == 'ps':
     #    clim_periods = ['HIST','SCEN-HIST']
-    # else:
+    #else:
     #    clim_periods = ['SCEN-HIST']
-    clim_periods = ['HIST', 'SCEN-HIST']
+    clim_periods = ['HIST','SCEN-HIST']
     # iterate over the two types of GCM data files
     # (HIST and SCEN-HIST)
     for clim_period in clim_periods:
@@ -123,23 +123,18 @@ for var_name in var_names:
         inp_file = os.path.join(args.input_dir, var_file_name)
         out_file = os.path.join(args.output_dir, var_file_name)
 
-        if args.era5_file_path is not None:
-            # open ERA5 file with target grid
-            ds_era5 = xr.open_dataset(args.era5_file_path)
+        # open ERA5 file with target grid
+        ds_era5 = xr.open_dataset(args.era5_file_path)
 
-        # smoothing
+        ## smoothing
         if args.processing_step == 'smoothing':
 
             filter_data(inp_file, var_name, out_file)
 
-        # regridding
+        ## regridding
         elif args.processing_step == 'regridding':
             try:
                 ds_gcm = xr.open_dataset(inp_file)
-                print('Done opening file: ' + inp_file)
-                # if ds_gcm.isnull().any():
-                #     raise ValueError(
-                #         f"Input file {inp_file} contains NaN values.")
             except:
                 raise("Files for variable " + var_name + " are missing")
             
@@ -153,4 +148,3 @@ for var_name in var_names:
             )
             
             ds_gcm.to_netcdf(out_file)
-            print('Done writing file: ' + out_file)

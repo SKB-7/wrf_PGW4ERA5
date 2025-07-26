@@ -43,8 +43,10 @@ Usage="
 ## for specific use case.
 
 -h to see this message
+-s <dataset_name> to get info on a specific data set (TODO)
+<> to get deltas for Amon dataset (should be removed later on)
 <dataset_name> to get the desired delta from this dataset
-    Curently supported are: Amon, Omon, Emon, day, CFday and SImon"
+    Curently supported are: Amon, Omon, Emon, day, CFday"
 
 while getopts 'h' flag; do
   case "${flag}" in
@@ -55,13 +57,12 @@ done
 # USER SETTINGS
 ##############################################################################
 # base directory where cmip6 data is stored
-cmip_data_dir=/mnt/hdd2/S_K_B/CMIP  #/net/atmos/data/cmip6/
+cmip_data_dir=/path/to/cmip6/data
 # base directory where output should be stored
-#
-out_base_dir=/mnt/hdd2/S_K_B/deltas  #.
+out_base_dir=/path/to/processed/climate/deltas
 
 # name of the GCM to extract data for
-gcm_name=MPI-ESM1-2-LR   #CESM2
+gcm_name=MPI-ESM1-2-HR
 
 ## CMIP experiments to use to compute climate deltas
 ## --> climate delta = future climatology - ERA climatology
@@ -74,7 +75,7 @@ future_climate_experiment=ssp585
 ## type of CMIP6 model output (e.g. monthly or daily, etc.)
 ## to use
 # standard monthly output
-# table_ID=Amon
+#table_ID=Amon
 ## high-resolution monthly data for only very few GCMs
 #table_ID=Emon
 ## standard daily output
@@ -96,8 +97,6 @@ elif [[ "$1" == "day" ]]; then
     table_ID=$1
 elif [[ "$1" == "CFday" ]]; then
     table_ID=$1
-elif [[ "$1" == "SImon" ]]; then
-	table_ID=$1
 elif [ $# -eq 0 ]; then
     echo "Please specify which dataset the deltas should be extracted from. See -h for more info"
     exit 0
@@ -110,7 +109,7 @@ fi
 
 ## select variables to extract
 if [[ "$table_ID" == "Amon" ]]; then
-    var_names=(ts tas hurs ps ua va ta hur zg)
+    var_names=(tas hurs ps ua va ta hur zg)
 elif [[ "$table_ID" == "day" ]]; then
     var_names=(tas hurs ps ua va ta hur zg)
 elif [[ "$table_ID" == "Emon" ]]; then
@@ -119,8 +118,6 @@ elif [[ "$table_ID" == "CFday" ]]; then
     var_names=(ua va ta hur)
 elif [[ "$table_ID" == "Omon" ]]; then
     var_names=(tos)
-elif [[ "$table_ID" == "SImon" ]]; then
-    var_names=(siconc)
 fi
 ## for Emon, compute hur delta separately after 
 ## it has been derived from hus
@@ -145,7 +142,7 @@ fi
 ## or anything larger than ERA5 subdomain
 ## except for storage and performance reasons, there is no benefit of
 ## using a subdomain.
-box=65,90,20,44 #67,88,22,42 #70,90,30,40    #0,360,-90,90
+box=0,360,-90,90
 # subdomain
 #box=-74,40,-45,35
 #box=-73,37,-42,34
@@ -180,33 +177,31 @@ for var_name in ${var_names[@]}; do
         if [[ $i_extract_vars == 1 ]]; then
 
             # data folder hierarchy for CMIP6
-            inp_dir=$cmip_data_dir/$experiment/$var_name/$gcm_name     #$cmip_data_dir/$experiment/$table_ID/$var_name/$gcm_name/r1i1p1f1/gn
-                                                                
+            inp_dir=$cmip_data_dir/$experiment/$table_ID/$var_name/$gcm_name/r1i1p1f1/gn
+
             # start of the CMIP6 file names
             file_name_base=${table_ID}_${gcm_name}_${experiment}_r1i1p1f1_gn
-            file_name_base1=${table_ID}_${gcm_name}_${experiment}_r1i1p1f1_gn
 
             ## overwrite old data
-            rm $out_dir/${var_name}_${experiment}.nc
+            #rm $out_dir/${var_name}_${experiment}.nc
 
-            ## compute ERA climatology change in line 198 as required #[5-9]*.nc \
+            ## compute ERA climatology
             if [[ "$experiment" == "$era_climate_experiment" ]]; then
-                echo "$inp_dir/${var_name}_${file_name_base}_185001-201412.nc"
                 # extract full time series
-                cdo -L -sellonlatbox,$box \
+                cdo sellonlatbox,$box \
                     -selyear,1985/2014 \
                     -cat \
-                    $inp_dir/${var_name}_${file_name_base}_185001-201412.nc \
+                    $inp_dir/${var_name}_${file_name_base}_19[8-9]*.nc \
+                    $inp_dir/${var_name}_${file_name_base}_20[0-1]*.nc \
                     $out_dir/${var_name}_${experiment}_full.nc
 
-            ## compute future experiment climatology change in line 207 as required #[1-9]*.nc \
+            ## compute future experiment climatology
             elif [[ "$experiment" == "$future_climate_experiment" ]]; then
-                echo "$inp_dir/${var_name}_${file_name_base1}_201501-210012.nc"
                 # extract full time series
-                cdo -L -sellonlatbox,$box \
+                cdo sellonlatbox,$box \
                     -selyear,2070/2099 \
                     -cat \
-                    $inp_dir/${var_name}_${file_name_base1}_201501-210012.nc \
+                    $inp_dir/${var_name}_${file_name_base}_20[6-9]*.nc \
                     $out_dir/${var_name}_${experiment}_full.nc
             fi
 
@@ -216,7 +211,7 @@ for var_name in ${var_names[@]}; do
             # this should be done on the basis of monthly values not
             # with the mean annual cycle. Due to this, the full time
             # series is stored as well.
-            cdo -L -$cdo_agg_command \
+            cdo $cdo_agg_command \
                 $out_dir/${var_name}_${experiment}_full.nc \
                 $out_dir/${var_name}_${experiment}.nc
         fi
@@ -235,7 +230,7 @@ for var_name in ${var_names[@]}; do
                     -a $Amon_out_dir/hur_${experiment}_full.nc
                     
                 # aggregate to yearly monthly/daily means
-                cdo -L -$cdo_agg_command \
+                cdo $cdo_agg_command \
                     $out_dir/hur_${experiment}_full.nc \
                     $out_dir/hur_${experiment}.nc
             fi
@@ -245,7 +240,7 @@ for var_name in ${var_names[@]}; do
 
     ## compute delta (future climatology - ERA climatology)
     if [[ $i_compute_delta == 1 ]]; then
-        cdo -L -sub $out_dir/${var_name}_$future_climate_experiment.nc \
+        cdo sub $out_dir/${var_name}_$future_climate_experiment.nc \
                 $out_dir/${var_name}_$era_climate_experiment.nc \
                 $out_dir/${var_name}_delta.nc
     fi
